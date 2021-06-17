@@ -108,7 +108,7 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
         uint256[] memory auctions_by_seller = new uint256[](0);
 
         for(uint256 i = 0; i<listed_tokens.length; i++) {
-            if(current_auctions[i].seller == msg.sender) {
+            if(current_auctions[i].seller == seller) {
               uint256[] memory tmp = new uint256[](auctions_by_seller.length+1);
 
               for(uint j = 0; j<auctions_by_seller.length+1; j++) {
