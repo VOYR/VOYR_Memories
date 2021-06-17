@@ -5,179 +5,134 @@ pragma solidity ^0.8.0;
 
 import "@OpenZeppelin/contracts/access/Ownable.sol";
 import "@OpenZeppelin/contracts/math/SafeMath.sol";
-import "@OpenZeppelin/contracts/token/ERC721/IERC721Enumerable.sol";
+import "@OpenZeppelin/contracts/token/ERC721/IERC721Enumerable.sol"; //implem by default in ERC721 - yeh, weird
 import "@OpenZeppelin/contracts/token/ERC721/ERC721Holder.sol";
 import "@OpenZeppelin/contracts/introspection/ERC165.sol";
 
 
 
-contract stake_anz is Ownable, IERC721Receiver, ERC165, ERC721Holder{
-  using SafeMath for uint256;
+contract VOYR_Marketplace is Ownable, IERC721Receiver, ERC165, ERC721Holder {
 
-      bool public allow_staking;
-      uint256[] public rate;  //0 -> base rate; 1 -> coef for 1 extra NFT staked, etc -> not defined=linear decay?
-      //rate array allows doing really fun stuff -> if you stake 5 token, get extra rate on this one, etc
-      address public approved_shop;
-      IERC721Enumerable main_anonz;
+      using SafeMath for uint256;
+      IERC721Enumerable VOYR_Memories;
 
-      event Staking_deposit(address sender, uint token_id);
-      event Init_stacking(address sender);
-      event Stacking_retrieval(address sender, uint token_id, uint reward);
-      event New_shop(address sender, address shop_contract);
+      event New_listing(address sender, uint256 token_id);
+      event New_bid(address sender, uint256 amount);
+      event Auction_closed(address seller, address buyer, uint256 token_id, uint256 final_price);
 
-      struct Struct_token {
-          uint256 puzzles;
-          uint256 lastRewardTimestamp;
+      uint8creator_fee;
+
+      struct auction {
+        address seller;
+        uint256 min_price;
+        uint256 highest_bid;
+        uint256 deadline;
+        address highest_bidder;
       }
 
-      mapping(uint256 => Struct_token) private tokens_carac;
+      mapping(uint256 => auction) private current_auctions; //token_id -> Auction
+      uint256 private listed_tokens;
 
-      mapping(address => uint256[]) private staked_tokens;
-
-      mapping(uint256 => address) private token_owners;
-
-      modifier onlyShop() {
-        require(msg.sender == approved_shop, "only the shop contract can spend PZL");
-        _;
-      }
-
-      modifier stakingActive() {
-          require(allow_staking==true, "staking inactive");
-          _;
-      }
-
-      constructor() {
-          rate.push(1); //by default, same rate for multi-stacking.
+      //@dev will only support VOYR_Memories NFTs -> this can be upgraded in future
+      //release if needed
+      constructor(address VOYR_Memories_address) {
           _registerInterface(IERC721Receiver.onERC721Received.selector);
+          VOYR_Memories = IERC721Enumerable(VOYR_Memories_address);
+          creator_fee = 1; //in %
       }
 
-      function start(address main_contract) public onlyOwner {
-          require(allow_staking == false, "Staking already active");
-          allow_staking = true;
-          main_anonz = IERC721Enumerable(main_contract);
-          emit Init_stacking(main_contract);
+
+      //@dev front-end will have to check isApprovedForAll(sender, marketplace address)
+      //and setApprovalForAll(marketplace_addres, true)
+      function newAuction(uint256 _token_id, uint256 _min_price, uint256 _deadline, ) public {
+
+        auction current_new = auction()
+        current_new.seller = msg.sender;
+        current_new.min_price = _min_price;
+        current_new.deadline = _deadline;
+
+
+        current_auctions[_token_id] = current_new;
+        listed_tokens.push(_token_id);
+
+        VOYR_Memories.safeTransferFrom(msg.sender, address(this), token_id);
+        emit New_listing(msg.sender, _token_id);
       }
 
-      function stop() public onlyOwner stakingActive {
-          allow_staking = false;
+
+      function newBid(uint256 _token_id) public payable {
+        auction _current = current_auctions[_token_id];
+        require(_current.min_price != 0, "No corresponding auction");
+        require(_current.min_price < msg.value && _current.highest_bid < msg.value, "place a higher bid");
+        require(_current.deadline >= block.timestamp, "auction expired");
+
+        address prev_bidder = _current.highest_bidder;
+        uint256 prev_bid = _current.highest_bid;
+
+        current_auctions[_token_id].highest_bid = msg.value;
+        current_auctions[_token_id].highest.bidder = msg.sender;
+
+        safeTransfer(prev_bidder, prev_bid);
+        emit New_bid(msg.sender, msg.value);
       }
 
-      function set_shop(address shop_contract) public onlyOwner {
-          approved_shop = shop_contract;
-          emit New_shop(msg.sender, approved_shop);
-      }
 
-      function stake(uint256 token_id) public stakingActive {
-        main_anonz.safeTransferFrom(msg.sender, address(this), token_id);
-        //will reverse if staking someone's else token or if already staked
+      function closeSale(uint256 _token_id) public {
+        auction _current = current_auctions[_token_id];
+        require(_current.min_price != 0, "no corresponding auction");
+        require(_current.deadline <= block.timestamp, "auction still running");
 
-        staked_tokens[msg.sender].push(token_id);
-        tokens_carac[token_id].lastRewardTimestamp = block.timestamp;
-        token_owners[token_id] = msg.sender;
-        emit Staking_deposit(msg.sender, token_id);
-      }
+        uint256 _creator = VOYR_Memories.creator(_token_id);
+        uint256 _creator_fee = _current.highest_bid.mul(creator_fee).div(100);
 
-      function get_staked() public view returns (uint256[] memory) {
-          return staked_tokens[msg.sender];
-      }
+        delete current_auctions[_token_id];
 
-      function update_reward() public {
-
-          uint256[] memory owner_tokens = get_staked();
-          uint nb_tokens = owner_tokens.length;
-          uint nb_rates = rate.length;
-
-          for (uint i=0; i<nb_tokens; i++) {
-
-            uint256 delta = block.timestamp.sub(tokens_carac[owner_tokens[i]].lastRewardTimestamp);
-
-            if(delta==0) {
+        for (uint i=0; i< listed_tokens.length; i++) { //O(n) :(
+            if (listed_tokens[i] == _token_id) {
+                listed_tokens[i] = listed_tokens[listed_tokens.length-1]; //no order needed -> swap&delete
+                listed_tokens[listed_tokens.length-1].pop();
                 break;
-            }
+        }
 
-            if (i>=nb_rates) {  //undefined rate for that n-th tokens -> use last one in rate array (rate fwd propagation)
-                tokens_carac[owner_tokens[i]].puzzles = tokens_carac[owner_tokens[i]].puzzles.add(delta * rate[nb_rates-1]);
-            }
-            else {
-                tokens_carac[owner_tokens[i]].puzzles = tokens_carac[owner_tokens[i]].puzzles.add(delta * rate[i]);
-            }
 
-            tokens_carac[owner_tokens[i]].lastRewardTimestamp = block.timestamp;
-          }
+        VOYR_Memories.safeTransfer(_current.highest_bidder, token_id);
+        safeTransfer(_current.seller, _current.highest_bid.sub(_creator_fee));
+        safeTransfer(_creator, _creator_fee);
+
+        emit Auction_closed(_current.seller, _current.highest_bidder, _token_id, _current._highest_bid);
 
       }
 
 
-      function unstake(uint256 token_id) public {
-        require(token_owners[token_id] == msg.sender, "cannot unstake tokens not owned");
+      //@dev will be free if called by user - watchout for gas from other contract
+      function auctionsBySellers(address seller) external view returns(uint256[] memory){
+        uint256[] memory auctions_by_seller = new uint256[]
 
-        main_anonz.safeTransferFrom(address(this), token_owners[token_id], token_id);
-
-        update_reward(); //last reward update
-        uint256[] memory owner_tokens = get_staked();
-        uint nb_tokens = owner_tokens.length;
-
-        for (uint i=0; i< nb_tokens; i++) { //alternative would have been another mapping - similar gaz
-            if (owner_tokens[i] == token_id) {
-                tokens_carac[owner_tokens[i]].lastRewardTimestamp = 0; //for when re-staking - keep puzzle balance!
-                staked_tokens[msg.sender][i] = staked_tokens[msg.sender][nb_tokens-1]; //no order needed -> swap&delete
-                staked_tokens[msg.sender].pop();
-                delete token_owners[token_id];//we used to save gaz with this, in the good ol' days
-                break;
+        for(uint256 i = 0; i<listed_tokens.length; i++) {
+            if(current_auctions[i].seller == msg.sender) {
+              auctions_by_seller.push(i);
             }
         }
+        return auctions_by_seller;
       }
 
-      function get_pzl_balance() view public returns (uint256) {//public -> UI use
-          uint256 total = get_reward(); //stake token are in stake_contract...
-          uint balance_tot = main_anonz.balanceOf(msg.sender);
-          for (uint i=0; i<balance_tot; i++) { //...while unstaked are in sender's wallet
-            total += tokens_carac[main_anonz.tokenOfOwnerByIndex(msg.sender, i)].puzzles;
-          }
-          return total;
+
+      function allAuctions() external view returns(uint256[]) {
+        return listed_tokens;
       }
 
-      function pzl_balance_by_token(uint256 token_id) view public returns (uint256) { //public -> UI use
-          require(token_owners[token_id] == address(0), "Unstake first");
-          return tokens_carac[token_id].puzzles;
+      function auctionsDetails(uint256 _token_id) external view returns(uint256) {
+        require(current_auctions[_token_id].min_price != 0, "No current auction");
+        return current_auctions[_token_id];
       }
 
-      function burn(uint256 token_id, uint256 amount) public onlyShop { //total pzl by owner (summing tokens) is determined in shop contract
-        update_reward();
-        require(tokens_carac[token_id].puzzles >= amount, "Not enough PZL");
-        tokens_carac[token_id].puzzles = tokens_carac[token_id].puzzles.sub(amount);
+      function setCreatorFeePercent(uint8 _new_rate) public onlyOwner {
+        creator_fee = _new_rate;
       }
-
-      function get_reward() public view returns (uint256) {
-          uint256[] memory owner_tokens = get_staked();
-          uint256 nb_tokens = owner_tokens.length; //1
-          uint256 nb_rates = rate.length; //1
-          uint256 total = 0;
-
-          for (uint i=0; i<nb_tokens; i++) {
-            uint256 delta = block.timestamp-tokens_carac[owner_tokens[i]].lastRewardTimestamp;
-
-            if (i>=nb_rates) {  //undefined rate for that much tokens -> use last one in rate array
-                total = total.add(tokens_carac[owner_tokens[i]].puzzles + (delta * rate[nb_rates-1]));
-            }
-            else {
-                total = total.add(tokens_carac[owner_tokens[i]].puzzles + (delta * rate[i]));
-            }
-          }
-
-        return total;
-      }
-
 
       fallback () external payable {  //fallback. Why are you so generous anyway?
          revert () ;}
 
-      function is_stacked(uint256 token_id) public view returns (bool) {
-          return (token_owners[token_id] != address(0));
-      }
-
-    function is_approved() public view returns (bool) {  //use main contract via web3 instead (gaz) - backup for "testing in prod"
-        return main_anonz.isApprovedForAll(address(this), msg.sender);
-    }
+      function safeTransfer
 
 }

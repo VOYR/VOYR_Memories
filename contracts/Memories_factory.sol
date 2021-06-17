@@ -11,6 +11,7 @@ contract VOYRMemories is ERC721, Ownable {
     Counters.Counter private _tokenIds;
 
     mapping (uint256 => string) private _tokenURIs;
+    mapping (uint256 => address) private _creator;
 
     string public contract_URI_shop;
 
@@ -24,7 +25,8 @@ contract VOYRMemories is ERC721, Ownable {
         _tokenIds.increment();
         _mint(receiver, _tokenIds.current());
         _setTokenURI(_tokenIds.current(), new_URI);
-        }
+        creator[_tokenIds.current()] = msg.sender;
+    }
 
     function _setTokenURI(uint256 tokenId, string memory _tokenURI) internal virtual {
         require(_exists(tokenId), "ERC721Metadata: URI set of nonexistent token");
@@ -34,6 +36,11 @@ contract VOYRMemories is ERC721, Ownable {
     function tokenURI(uint256 token_id) external view override returns (string memory) {
         require(_exists(token_id), "ERC721Metadata: nonexistent token");
         return abi.encodePacked(_baseURI, _tokenURIs[tokenId]);
+    }
+    
+    function creator(uint256 token_id) external view returns (address) {
+        require(_exists(token_id), "ERC721Metadata: nonexistent token");
+        return _creator[token_id];
     }
 
     function setContractUriShop(string memory new_contract_uri) public onlyOwner {
