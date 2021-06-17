@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@openzeppelin/contracts": "^4.1.0",
+    "@openzeppelin/contracts": "*",
     "@uniswap/v2-periphery": "*",
     "bignumber.js": "^2.0.7",
     "bn.js": "^4.12.0",
