@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 //import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol"; //implem by default in ERC721 - yeh, weird
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "./Memories_factory.sol";
+import "./VOYRMemories.sol";
 
 
 
@@ -96,9 +96,14 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
         listed_tokens = _listed_tokens;
         listed_tokens.pop();
 
+        uint256 _fee = VOYR_Memories.creatorFee(_token_id);
+        if(_fee == 0) {
+            _fee = _creator_fee;
+        }
+
         VOYR_Memories.safeTransferFrom(address(this), _current.highest_bidder, _token_id);
-        safeTransfer(_current.seller, _current.highest_bid.sub(_creator_fee));
-        safeTransfer(_creator, _creator_fee);
+        safeTransfer(_current.seller, _current.highest_bid.sub(_fee));
+        safeTransfer(_creator, _fee);
 
         emit Auction_closed(_current.seller, _current.highest_bidder, _token_id, _current.highest_bid);
       }
