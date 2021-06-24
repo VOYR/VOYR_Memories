@@ -33,6 +33,7 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
       }
 
       mapping(uint256 => auction) private current_auctions; //token_id -> Auction
+      mapping(address => uint256[]) private auction_by_seller;
       uint256[] private listed_tokens;
 
       //@dev will only support VOYR_Memories NFTs -> this can be upgraded in future
@@ -53,6 +54,7 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
 
         current_auctions[_token_id] = current_new;
         listed_tokens.push(_token_id);
+        auction_by_seller[msg.sender].push(_token_id);
 
         VOYR_Memories.safeTransferFrom(msg.sender, address(this), _token_id);
         emit New_listing(msg.sender, _token_id);
@@ -96,6 +98,15 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
         listed_tokens = _listed_tokens;
         listed_tokens.pop();
 
+        uint256[] memory current_seller_auctions = auction_by_seller[msg.sender];
+        for (uint i=0; i < current_seller_auctions.length; i++) {
+          if(current_seller_auctions[i] == _token_id) {
+            auction_by_seller[msg.sender][i] = current_seller_auctions[current_seller_auctions.length-1];
+            auction_by_seller[msg.sender].pop();
+            break;
+          }
+        }
+
         uint256 _fee = VOYR_Memories.creatorFee(_token_id);
         if(_fee == 0) {
             _fee = _creator_fee;
@@ -110,21 +121,7 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
 
 
       function auctionsBySellers(address seller) external view returns(uint256[] memory){
-        uint256[] memory auctions_by_seller = new uint256[](0);
-
-        for(uint256 i = 0; i<listed_tokens.length; i++) {
-            if(current_auctions[i].seller == seller) {
-              uint256[] memory tmp = new uint256[](auctions_by_seller.length+1);
-
-              for(uint j = 0; j<auctions_by_seller.length+1; j++) {
-                tmp[j] = auctions_by_seller[j];
-              }
-
-              tmp[tmp.length - 1] = i;
-              auctions_by_seller = tmp;
-            }
-        }
-        return auctions_by_seller;
+        return auction_by_seller[seller];
       }
 
 
@@ -132,8 +129,8 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
         return listed_tokens;
       }
 
-      function auctionsDetails(uint256 _token_id) external view returns(auction memory) {
-        require(current_auctions[_token_id].min_price != 0, "No current auction");
+      function auctionDetails(uint256 _token_id) external view returns(auction memory) {
+        require(current_auctions[_token_id].deadline != 0, "No current auction");
         return current_auctions[_token_id];
       }
 
