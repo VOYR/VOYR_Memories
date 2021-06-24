@@ -56,8 +56,8 @@ describe("Auction", () => {
       const mkt = await Marketplace.deployed();
       const now = new Date().getTime();
 
-      await mkt.newAuction(1, '1'+'0'.repeat(18), now+1000, {from: seller});
-
+      await mkt.newAuction(1, '1'+'0'.repeat(18), now+1, {from: seller});
+console.log(now+1);
       const all_auctions = await mkt.allAuctions.call();
 
       assert.equal(all_auctions, 1, "incorrect auction listing");
@@ -108,16 +108,27 @@ describe("Auction", () => {
     it("auctionBySellers", async () => {
       const mkt = await Marketplace.deployed();
       const auction_from_1 = await mkt.auctionsBySellers.call(accounts[1]);
-      await assert.equal(auction_from_1, [1], "invalid tokenID");
+      //const first = auction_from_1[0]
+      await assert.equal(auction_from_1[0], 1, "invalid tokenID");
     });
-/*
+
     it("closing", async () => {
-      await time.advanceTimeAndBlock(1);
+      const mkt = await Marketplace.deployed();
+      await timeHelper.advanceTimeAndBlock(300000);
+      const now = new Date().getTime();
+
+      console.log(now);
+      const seller = accounts[1];
+      const old_seller_init_balance = await web3.eth.getBalance(seller);
+      await mkt.closeSale(1, {from: seller});
+      const old_seller_new_balance = await web3.eth.getBalance(seller);
+      console.log("Take gas into account !");
+      console.log("Balance before closing : "+old_seller_init_balance);
+      console.log("Balance after closing : "+old_seller_new_balance);
+      await assert.equal(1,1);
+
     });
-    
-    it("claim", async () => {
-    });
-*/
+
   });
   
 });

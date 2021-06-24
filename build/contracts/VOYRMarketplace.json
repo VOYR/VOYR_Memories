@@ -121,7 +121,8 @@
     },
     {
       "stateMutability": "payable",
-      "type": "fallback"
+      "type": "fallback",
+      "payable": true
     },
     {
       "inputs": [],
@@ -134,7 +135,8 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
+      "type": "function",
+      "constant": true
     },
     {
       "inputs": [],
@@ -190,7 +192,8 @@
       "name": "newBid",
       "outputs": [],
       "stateMutability": "payable",
-      "type": "function"
+      "type": "function",
+      "payable": true
     },
     {
       "inputs": [
@@ -222,7 +225,8 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
+      "type": "function",
+      "constant": true
     },
     {
       "inputs": [],
@@ -235,7 +239,8 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
+      "type": "function",
+      "constant": true
     },
     {
       "inputs": [
@@ -281,7 +286,8 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
+      "type": "function",
+      "constant": true
     },
     {
       "inputs": [
@@ -22202,10 +22208,17 @@
       "links": {},
       "address": "0xEdDE5492e9C14dE4BA77a9D61054Be435dC7D817",
       "transactionHash": "0xdfb433ffb3b6029abdf3415dec1fa77a6a5a9c6478a19e7b581015b7a08d2b1b"
+    },
+    "1624564631122": {
+      "events": {},
+      "links": {},
+      "address": "0xac354d595Be9fA74202567Bbfcc88d234a1c2B50",
+      "transactionHash": "0xd330f14353485bea7b3f31d4678d059dbe1b0b909e617df8558f9a3b0dce6a61"
     }
   },
   "schemaVersion": "3.4.0",
-  "updatedAt": "2021-06-24T19:42:54.153Z",
+  "updatedAt": "2021-06-24T20:09:36.986Z",
+  "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",
     "methods": {

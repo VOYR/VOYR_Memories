@@ -81,7 +81,7 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
       function closeSale(uint256 _token_id) external {
         auction memory _current = current_auctions[_token_id];
         require(_current.deadline != 0, "no corresponding auction");
-        require(_current.deadline <= block.timestamp, "auction still running");
+        require(_current.deadline >= block.timestamp, "auction still running");
 
         address _creator = VOYR_Memories.creator(_token_id);
         uint256 _creator_fee = _current.highest_bid.mul(creator_fee).div(100);
@@ -112,9 +112,11 @@ contract VOYRMarketplace is Ownable, IERC721Receiver {
             _fee = _creator_fee;
         }
 
+        uint256 fee = _fee.mul(_current.highest_bid).div(100);
+
         VOYR_Memories.safeTransferFrom(address(this), _current.highest_bidder, _token_id);
-        safeTransfer(_current.seller, _current.highest_bid.sub(_fee));
-        safeTransfer(_creator, _fee);
+        safeTransfer(_current.seller, _current.highest_bid.sub(fee));
+        safeTransfer(_creator, fee);
 
         emit Auction_closed(_current.seller, _current.highest_bidder, _token_id, _current.highest_bid);
       }
